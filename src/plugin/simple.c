@@ -4,36 +4,94 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-void PreProcessing(Form* form){
+/*
+Passos para implementar o VSIDS:
+1 - Fazer uma heap de máximo que guarda as maiores pontuações de cada variável - FEITO
+2 - Iniciar a fila de prioridades com todas as pontuações zeradas - FEITO
+
+Atualizar pontuação:
+3 - Durante análise de conflito (resolveConflict): Quando um conflito ocorre, identifique
+    todas as variáveis envolvidas no conflito.
+4 - Aumente a pontuação de cada variável envolvida no conflito (normalmente +1 para
+    cada ocorrência)
+5 - Atualize a fila de prioridade após as mudanças nas pontuações
+
+Decaimento:
+6 - Implemente um contador de conflitos para acionar o decaimento periódico
+7 - A cada N conflitos (por exemplo, a cada 255 conflitos):
+        Multiplique todas as pontuações por um fator de decaimento (exemplo: 0.95)
+        Alternativamente, divida todas as pontuações por um valor constante
+        Atualize a fila de prioridade após o decaimento
+
+Decisão:
+8 - Quando precisar escolher uma nova variável:
+        Selecione a variável não atribuída com maior pontuação da fila de prioridade
+        Escolha a polaridade (verdadeiro/falso) baseada em heurística auxiliar ou histórico
+
+Possíveis melhorias:
+9 - Implemente decaimento "preguiçoso" (lazy decay) para evitar atualizar todas as variáveis
+10 - Use uma heap binária ou estrutura similar para a fila de prioridade
+11 - Mantenha um contador separado de "bumps" (incrementos) para cada variável
+*/
+
+typedef struct VarScore {
+    double score;
+    int var;
+} VarScore;
+
+typedef struct VarScoreHeap {
+    VarScore **arr;
+    int16_t size;
+    int16_t *varHeapIdx; // Vetor que mapeia: (id da variável-1) -> index na heap. 
+} VarScoreHeap;
+
+// Heap de pontuação máxima das variáveis.
+VarScoreHeap *varScoreHeap;
+
+VarScoreHeap* createHeap(int16_t size) {
+    VarScoreHeap *h = (VarScoreHeap *)malloc(sizeof(VarScoreHeap));
+    h->arr = (VarScore **)malloc(size * sizeof(VarScore *));
+    h->size = size;
+    h->varHeapIdx = (int *)malloc(size * sizeof(int));
+
+    for(int i=0; i<=size; i++) {
+        h->arr[i] = (VarScore *)malloc(sizeof(VarScore));
+        h->arr[i]->var = i+1;
+        h->arr[i]->score = 0.0;
+        h->varHeapIdx[i] = i;
+    }
+
+    return h;
 }
 
-// decide padrão
-// enum DecideState Decide(const Form* form)
-// {
+void heapify(VarScoreHeap *h, int *hIdx, int index) {
+    if (index <= 0) return;
+    int parent = (index - 2) / 2;
 
-//     ClauseNode* list = form->clauses;
-//     while(list != NULL)
-//     {
+    if (h->arr[index]->score > h->arr[parent]->score) {
+        // atualizar posições no varHeapIdx
+        hIdx[h->arr[index]->var-1] = parent;
+        hIdx[h->arr[parent]->var-1] = index;
 
-//         Clause *clause = list->clause;
+        // trocar posições na heap
+        VarScore *temp = h->arr[parent];
+        h->arr[parent] = h->arr[index];
+        h->arr[index] = temp;
+    }
+}
 
-//         for(int i = 0; i<clause->size; ++i)
-//         {
-//             LiteralId lit = clause->literals[i];
-//             lit = ((lit > 0 )? lit : -lit);
-//             if(getVarState(lit-1) == UNK)
-//             {
-//                 insertDecisionLevel(lit-1, FALSE);
+void printHeap(VarScoreHeap *h) {
+    printf("HEAP:\n");
+    for(int i=0; i<h->size; i++) {
+        printf("%d -> [lit: %d | score: %f]\n", i, h->arr[i]->var, h->arr[i]->score);
+    }
+    printf("heap size: %d\n", h->size);
+}
 
-//                 return FOUND_VAR;
-//             }
-//         }
-
-//         list = list->next;
-//     }
-
-//     return ALL_ASSIGNED;
-// }
+void PreProcessing(Form* form){
+    varScoreHeap = createHeap(form->numVars);
+    printHeap(varScoreHeap);
+}
 
 // jeroslaw-wang
 enum DecideState Decide(const Form* form) {
